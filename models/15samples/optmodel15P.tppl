@@ -1,0 +1,53 @@
+/*
+ * File: optmodel15P.tppl
+ * Description: Probabilistic model taken from optimal metabarcoding adjusted to 15samples, DRAFT
+ * Compilation:
+ *  tpplc models/15samples/optmodel15P.tppl -m 'smc-bpf' --resample align --output optmodel15P
+ * Execution with 10000 particles and 1 sweep:
+ * ./optmodel15P models/data/15samples/art_h_P.json 1000 1 > 15Pred.json
+ */
+
+/*
+ * Model function
+ * Data:
+ *   Homogenate data, 15 samples. dataset is number of reads r per species per sample for two artificial spikeins
+ * Priors: 
+ *   ...
+ * Posterior:
+ *   returning k at the moment
+ */
+model function myModel(dataset: Real[][]) : Tensor[Real]  {
+
+  assume k ~ Gamma(1.0, 10.0);
+  assume logTheta ~ Gaussian(0.0, 2.0); 
+  let theta = exp(logTheta);
+
+  assume tau ~ Gamma(3.0, (1.0/27.0));
+  let sigma = sqrt(1.0 / tau); //sigma2 sampled from InverseGamma
+  assume mu ~ Gaussian(6.5, sigma); 
+
+  let nsamples = 15; //length(dataset); // nsamples is total number of samples of artificial spikeins, with index j
+  let logC = iid(gaussian, GaussianParam{mean=mu, dev=sigma}, nsamples); // sample j logC's
+
+  for j in 1 to nsamples { 
+    for i in 1 to 2 { //i is index of spike-in species(artificial or biological) or simply species index
+      if dataset[j][i] > 0.0 { //cannot observe a zero from Gamma
+        observe dataset[j][i] ~ Gamma(k, exp(logC[j])*theta);
+      }
+    }
+  }
+
+  let nVec = iid(uniform, UniformParam{a=1.0, b=100.0}, 30); // sample n's from Uniform 2*15=30 in toy data
+  let n  = mtxCreate(nsamples, 2, nVec);  //Create matrix from sampled n vector
+
+  for j in 16 to 30 { //testing toy dataset with 15 samples, rows 16-30 in data
+    for i in 1 to 2 { //i is index of species, in toy datase 2 species
+      if dataset[j][i] > 0.0 { //cannot observe a zero from Gamma
+        observe dataset[j][i] ~ Gamma(mtxGet(subi(j,15), i, n)*k, exp(logC[subi(j,15)])*theta); 
+      }
+    }
+  }
+  
+  return(n); 
+}
+

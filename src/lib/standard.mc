@@ -11,6 +11,9 @@ include "ext/dist-ext.mc"
 
 let muli = muli
 let eqi = eqi
+let neqi = neqi
+let addi = addi
+let subi = subi
 
 ----------------------------
 --- Printing and strings ---
