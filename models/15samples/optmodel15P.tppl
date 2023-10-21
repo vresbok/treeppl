@@ -43,7 +43,7 @@ model function myModel(dataset: Real[][]) : Tensor[Real]  {
   let n  = mtxCreate(subi(nspecies, 2), nsamples, nVec);  //Create matrix from sampled n vector
 
   for j in 1 to nsamples { //testing toy dataset with 15 samples, rows 16-30 in data
-    for i in 3 to (subi(nspecies, 2)) { //i is index of species, first two are artificial spikeins
+    for i in 3 to nspecies { //i is index of species, first two are artificial spikeins
       if dataset[i][j] > 0.0 { //cannot observe a zero from Gamma
         observe dataset[i][j] ~ Gamma(mtxGet(subi(i, 2), j, n)*k, exp(logC[j])*theta); 
       }
