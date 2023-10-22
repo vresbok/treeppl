@@ -24,11 +24,11 @@ function predict_sample(dataset: Real[][], k: Real, theta: Real, logC: Real[], s
  * Recursive prediction function per species
  */
 function predict_species(dataset: Real[][], k: Real, theta: Real, logC: Real, sample: Int, species: Int, n: Real[]): Real[] { 
-  if dataset[species][sample] > 0.0 { //cannot observe a zero from Gamma
+  if dataset[species][sample] > 0.0 { 
     assume sampled_n ~ Uniform(1.0, 100.0);
     observe dataset[species][sample] ~ Gamma(sampled_n*k, exp(logC)*theta); 
     let new_n = join([n, [sampled_n]]);
-    if eqi(species, 480) { //NOTE could be length(species) later when length bug fixed. 478 species, 480 index with two art spike ins 
+    if eqi(species, 480) { //NOTE could be length(species) later when length bug fixed.
       return new_n;
     }
     else {
@@ -37,7 +37,7 @@ function predict_species(dataset: Real[][], k: Real, theta: Real, logC: Real, sa
   }
   else { 
     let new_n = join([n, [0.0]]);
-    if eqi(species, 480) { //478 species, 480 index with two art spike ins 
+    if eqi(species, 480) { //NOTE could be length(species) later when length bug fixed.
       return new_n;
     }
     else {
@@ -66,10 +66,9 @@ model function myModel(dataset: Real[][]) : Real[]  {
   let sigma = sqrt(1.0 / tau); //sigma2 sampled from InverseGamma
   assume mu ~ Gaussian(6.5, sigma); 
 
-  //let nspecies = length(dataset); // nsamples is total number of species, index 1 (rows in json file) 480, 478 minus spike ins
   let nsamples = 15; 
-
-  let logC = iid(gaussian, GaussianParam{mean=mu, dev=sigma}, nsamples); // sample j logC's
+  // sample nsamples (index j) logC's
+  let logC = iid(gaussian, GaussianParam{mean=mu, dev=sigma}, nsamples); 
 
   //Train on artificial spike-ins
   for j in 1 to nsamples { 
