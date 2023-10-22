@@ -1,10 +1,10 @@
 /*
- * File: optmodel15P.tppl
+ * File: optmodel15P-2.tppl
  * Description: Probabilistic model taken from optimal metabarcoding adjusted to 15samples, DRAFT
  * Compilation:
  *  tpplc models/15samples/optmodel15P-2.tppl -m 'smc-bpf' --resample align --output optmodel15P-2
  * Execution with 10000 particles and 1 sweep:
- * ./optmodel15P-2 models/data/15samples/H15s.json 1000 1 > 15Pred.json
+ * ./optmodel15P-2 models/data/15samples/H15s.json 10000 1 > 15Pred.json
  */
 
 /*
@@ -28,7 +28,7 @@ function predict_species(dataset: Real[][], k: Real, theta: Real, logC: Real, sa
     assume sampled_n ~ Uniform(1.0, 100.0);
     observe dataset[species][sample] ~ Gamma(sampled_n*k, exp(logC)*theta); 
     let new_n = join([n, [sampled_n]]);
-    if eqi(species, 478) { //478 species, 480 index with two art spike ins 
+    if eqi(species, 480) { //NOTE could be length(species) later when length bug fixed. 478 species, 480 index with two art spike ins 
       return new_n;
     }
     else {
@@ -37,7 +37,7 @@ function predict_species(dataset: Real[][], k: Real, theta: Real, logC: Real, sa
   }
   else { 
     let new_n = join([n, [0.0]]);
-    if eqi(species, 478) { //478 species, 480 index with two art spike ins 
+    if eqi(species, 480) { //478 species, 480 index with two art spike ins 
       return new_n;
     }
     else {
@@ -81,7 +81,7 @@ model function myModel(dataset: Real[][]) : Real[]  {
   }
 
   let n = predict_sample(dataset, k, theta, logC, 1, 3, [0.0]); //Go through samples from 1 to 15, species from 3 to 480
-  let final_n = slice(n, 2, length(n));
+  let final_n = slice(n, 2, addi(length(n), 1)); // Remove [0.0] that was used as starting point for n.
 
   return(final_n); 
 }
