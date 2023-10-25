@@ -69,11 +69,11 @@ model function myModel(dataset: Real[][]) : Real[]  {
   // sample nsamples (index j) logC's
   let logC = iid(gaussian, GaussianParam{mean=mu, dev=sigma}, nsamples); 
 
-  //Train on artificial spike-ins
+  //Train on artificial spike-ins, guessing for n is around 5
   for j in 1 to nsamples { 
     for i in 1 to 2 { //i is index of spike-in species(artificial or biological) or simply species index. 2 artificial spikeins!
       if dataset[i][j] > 0.0 { //cannot observe a zero from Gamma
-        observe dataset[i][j] ~ Gamma(k, exp(logC[j])*theta);
+        observe dataset[i][j] ~ Gamma(5.0*k, exp(logC[j])*theta);
       }
     }
   }
