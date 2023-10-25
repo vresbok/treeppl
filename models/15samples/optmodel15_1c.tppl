@@ -1,0 +1,41 @@
+/*
+ * File: optmodel15.tppl
+ * Description: Probabilistic model taken from optimal metabarcoding adjusted to 15samples, 2023-10-08
+ * Compilation:
+ *  tpplc models/15samples/optmodel15_1c.tppl -m 'smc-bpf' --resample align --output optmodel15_1c
+ * Execution with 10000 particles and 1 sweeps:
+ * ./optmodel15_1c models/data/15samples/art_h.json 10000 1 > 15s_1c.json
+ */
+
+/*
+ * Model function
+ * Data:
+ *   Homogenate data, 15 samples. dataset is number of reads r per species per sample for two artificial spikeins
+ * Priors: 
+ *   ...
+ * Posterior:
+ *   returning k at the moment
+ */
+model function myModel(dataset: Real[][]) : Real  {
+  assume k ~ Gamma(1.0, 10.0);
+  assume logTheta ~ Gaussian(0.0, 2.0); 
+  let theta = exp(logTheta);
+  
+  assume tau ~ Gamma(3.0, (1.0/27.0));
+  let sigma = sqrt(1.0 / tau); //sigma2 sampled from InverseGamma
+  assume mu ~ Gaussian(6.5, sigma); 
+
+  let nsamples = length(dataset); // nsamples is total number of samples, with index j
+  assume logC ~ Gaussian(mu, sigma); 
+  let c = exp(logC);
+
+  for j in 1 to nsamples { 
+    for i in 1 to 2 { //i is index of spike-in species(artificial or biological) or simply species index
+      if dataset[j][i] > 0.0 { //cannot observe a zero from Gamma
+        observe dataset[j][i] ~ Gamma(k, c*theta);
+      }
+    }
+  }
+  //let d = k*theta;
+  return (k); 
+}

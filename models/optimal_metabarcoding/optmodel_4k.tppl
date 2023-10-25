@@ -1,0 +1,49 @@
+/*
+ * File: optmodel_4k.tppl
+ * Description: Probabilistic model taken from optimal metabarcoding, draft 2023-09-13
+ * Compilation:
+ *   tpplc models/optmetabar/optmodel_4k.tppl -m 'smc-bpf' --resample align --output optmodel_4k
+ * Execution with 100000 particles and 100 sweeps (homogenate data H.json or lysate data L.json): 
+ * ./optmodel_4k models/data/H_real.json 100000 100 > output/H_4k.json
+ */
+
+/*
+ * Model function
+ * Data:
+ *   Homogenate data in H.json or lysate data in L.json: 
+ * Priors: 
+ *   From optimal metabarcoding paper, Iwaszkiewicz-Eggebrecht et al., 2023
+ * Posterior:
+ *   returning theta at the moment
+ */
+model function myModel(dataset: Real[][]) : Real  {
+  assume k1 ~ Gamma(1.0, 10.0);
+  assume k2 ~ Gamma(1.0, 10.0);
+  assume k3 ~ Gamma(1.0, 10.0);
+  assume k4 ~ Gamma(1.0, 10.0);
+  assume logTheta ~ Gaussian(0.0, 2.0); 
+  let theta = exp(logTheta);
+  
+  assume tau ~ Gamma(3.0, (1.0/27.0));
+  let sigma = sqrt(1.0 / tau); //sigma2 sampled from InverseGamma
+  assume mu ~ Gaussian(6.5, sigma); 
+
+  let nsamples = length(dataset); // nsamples is total number of samples, with index j
+  for j in 1 to nsamples { 
+    assume logC ~ Gaussian(mu, sigma); 
+    let c = exp(logC);
+    if dataset[j][1] > 0.0 {
+      observe dataset[j][1] ~ Gamma(k1, c*theta);
+    }
+    if dataset[j][2] > 0.0 {
+      observe dataset[j][2] ~ Gamma(k2, c*theta);
+    }
+    if dataset[j][3] > 0.0 {
+      observe dataset[j][3] ~ Gamma(k3, c*theta);
+    }
+    if dataset[j][4] > 0.0 {
+      observe dataset[j][4] ~ Gamma(k4, c*theta);
+    }
+  }
+  return(theta); 
+}

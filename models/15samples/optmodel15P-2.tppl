@@ -1,0 +1,87 @@
+/*
+ * File: optmodel15P-2.tppl
+ * Description: Probabilistic model taken from optimal metabarcoding adjusted to 15samples, DRAFT
+ * Compilation:
+ *  tpplc models/15samples/optmodel15P-2.tppl -m 'smc-bpf' --resample align --output optmodel15P-2
+ * Execution with 10000 particles and 1 sweep:
+ * ./optmodel15P-2 models/data/15samples/H15s.json 10000 1 > 15Pred.json
+ */
+
+/*
+ * Recursive prediction function per sample
+ */
+function predict_sample(dataset: Real[][], k: Real, theta: Real, logC: Real[], sample: Int, species: Int, n: Real[]): Real[] { 
+  let new_n = predict_species(dataset, k, theta, logC[sample], sample, species, n);
+  if eqi(sample, 15) { //15 samples
+    return new_n;
+  }
+  else {
+    return predict_sample(dataset, k, theta, logC, addi(sample, 1), species, new_n);
+  }
+}
+
+/*
+ * Recursive prediction function per species
+ */
+function predict_species(dataset: Real[][], k: Real, theta: Real, logC: Real, sample: Int, species: Int, n: Real[]): Real[] { 
+  if dataset[species][sample] > 0.0 { 
+    assume sampled_n ~ Uniform(1.0, 100.0);
+    observe dataset[species][sample] ~ Gamma(sampled_n*k, exp(logC)*theta); 
+    let new_n = join([n, [sampled_n]]);
+    if eqi(species, 480) { //NOTE could be length(species) later when length bug fixed.
+      return new_n;
+    }
+    else {
+      return predict_species(dataset, k, theta, logC, sample, addi(species, 1), new_n);
+    }
+  }
+  else { 
+    let new_n = join([n, [0.0]]);
+    if eqi(species, 480) { //NOTE could be length(species) later when length bug fixed.
+      return new_n;
+    }
+    else {
+      return predict_species(dataset, k, theta, logC, sample, addi(species, 1), new_n);
+    }
+  }
+}
+
+
+/*
+ * Model function
+ * Data:
+ *   Homogenate data, 15 samples. dataset is number of reads r per species per sample for two artificial spikeins
+ * Priors: 
+ *   ...
+ * Posterior:
+ *   returning k at the moment
+ */
+model function myModel(dataset: Real[][]) : Real[]  {
+
+  assume k ~ Gamma(1.0, 10.0);
+  assume logTheta ~ Gaussian(0.0, 2.0); 
+  let theta = exp(logTheta);
+
+  assume tau ~ Gamma(3.0, (1.0/27.0));
+  let sigma = sqrt(1.0 / tau); //sigma2 sampled from InverseGamma
+  assume mu ~ Gaussian(6.5, sigma); 
+
+  let nsamples = 15; 
+  // sample nsamples (index j) logC's
+  let logC = iid(gaussian, GaussianParam{mean=mu, dev=sigma}, nsamples); 
+
+  //Train on artificial spike-ins
+  for j in 1 to nsamples { 
+    for i in 1 to 2 { //i is index of spike-in species(artificial or biological) or simply species index. 2 artificial spikeins!
+      if dataset[i][j] > 0.0 { //cannot observe a zero from Gamma
+        observe dataset[i][j] ~ Gamma(k, exp(logC[j])*theta);
+      }
+    }
+  }
+
+  let n = predict_sample(dataset, k, theta, logC, 1, 3, [0.0]); //Go through samples from 1 to 15, species from 3 to 480
+  let final_n = slice(n, 2, addi(length(n), 1)); // Remove [0.0] that was used as starting point for n.
+
+  return(final_n); 
+}
+
