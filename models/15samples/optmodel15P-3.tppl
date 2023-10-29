@@ -1,10 +1,10 @@
 /*
- * File: optmodel15P-2.tppl
+ * File: optmodel15P-3.tppl
  * Description: Probabilistic model taken from optimal metabarcoding adjusted to 15samples, DRAFT
  * Compilation:
- *  tpplc models/15samples/optmodel15P-2.tppl -m 'smc-bpf' --resample align --output optmodel15P-2
+ *  tpplc models/15samples/optmodel15P-3.tppl -m 'smc-bpf' --resample align --output optmodel15P-3
  * Execution with 10000 particles and 1 sweep:
- * ./optmodel15P-2 models/data/15samples/H15s.json 10000 1 > 15Pred.json
+ * ./optmodel15P-3 models/data/15samples/H15s.json 10000 1 > 15Pred.json
  */
 
 /*
