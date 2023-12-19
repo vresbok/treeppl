@@ -1,10 +1,10 @@
 /*
  * File: optmodel_4k4theta.tppl
- * Description: Probabilistic model taken from optimal metabarcoding, draft 2023-09-13
+ * Description: Probabilistic model taken from optimal metabarcoding
  * Compilation:
- *   tpplc models/optmetabar/optmodel_4k4theta.tppl -m 'smc-bpf' --resample align --output optmodel_4k4theta
- * Execution with 100000 particles and 100 sweeps (homogenate data H.json or lysate data L.json): 
- * ./optmodel_4k4theta models/data/H_real.json 100000 10  > output/H_4k4theta.json
+ *   tpplc models/optimal_metabarcoding/optmodel_4k4theta.tppl -m 'smc-apf' --resample align --output optmodel_4k4theta
+ * Execution with 500000 particles and 100 sweeps (homogenate data H.json or lysate data L.json): 
+ * ./optmodel_4k4theta models/data/optmetabar/H.json 500000 100  > output/H_4k4theta.json
  */
 
 /*
@@ -13,43 +13,28 @@
  *   Homogenate data in H.json or lysate data in L.json: 
  * Priors: 
  *   From optimal metabarcoding paper, Iwaszkiewicz-Eggebrecht et al., 2023
- * Posterior:
- *   returning nothing at the moment
+ *
  */
-model function myModel(dataset: Real[][]) : ()  {
-  assume k1 ~ Gamma(1.0, 10.0);
-  assume k2 ~ Gamma(1.0, 10.0);
-  assume k3 ~ Gamma(1.0, 10.0);
-  assume k4 ~ Gamma(1.0, 10.0);
-  assume logTheta1 ~ Gaussian(0.0, 2.0); 
-  let theta1 = exp(logTheta1);
-  assume logTheta2 ~ Gaussian(0.0, 2.0); 
-  let theta2 = exp(logTheta2);
-  assume logTheta3 ~ Gaussian(0.0, 2.0); 
-  let theta3 = exp(logTheta3);
-  assume logTheta4 ~ Gaussian(0.0, 2.0); 
-  let theta4 = exp(logTheta4);
+model function myModel(dataset: Int[][]) : ()  {
+  let k = iid(gamma, GammaParam{shape = 1.0, scale = 10.0}, 4); 
+  let logTheta = iid(gaussian, GaussianParam{mean = 0.0, dev = 2.0}, 4); 
+  let theta = sapply(logTheta, exp); 
   
   assume tau ~ Gamma(3.0, (1.0/27.0));
   let sigma = sqrt(1.0 / tau); //sigma2 sampled from InverseGamma
   assume mu ~ Gaussian(6.5, sigma); 
 
   let nsamples = length(dataset); // nsamples is total number of samples, with index j
+  let logC = iid(gaussian, GaussianParam{mean = mu, dev = sigma}, nsamples); // sample j logC's
+  let c = sapply(logC, exp); 
+
   for j in 1 to nsamples { 
-    assume logC ~ Gaussian(mu, sigma); 
-    let c = exp(logC);
-    if dataset[j][1] > 0.0 {
-      observe dataset[j][1] ~ Gamma(k1, c*theta1);
-    }
-    if dataset[j][2] > 0.0 {
-      observe dataset[j][2] ~ Gamma(k2, c*theta2);
-    }
-    if dataset[j][3] > 0.0 {
-      observe dataset[j][3] ~ Gamma(k3, c*theta3);
-    }
-    if dataset[j][4] > 0.0 {
-      observe dataset[j][4] ~ Gamma(k4, c*theta4);
+    for i in 1 to 4 { //i is index of spike-in species(artificial or biological) or simply species index
+      if neqi(dataset[j][i], 0) { //cannot observe a zero from Gamma
+        observe Real(dataset[j][i]) ~ Gamma(k[i], c[j] * theta[i]);
+      }
     }
   }
-  //return(); 
+
+  //return () //Not returning samples in this version
 }

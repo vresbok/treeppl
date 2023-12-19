@@ -1,10 +1,10 @@
 /*
  * File: optmodel_4k.tppl
- * Description: Probabilistic model taken from optimal metabarcoding, draft 2023-09-13
+ * Description: Probabilistic model taken from optimal metabarcoding
  * Compilation:
- *   tpplc models/optmetabar/optmodel_4k.tppl -m 'smc-bpf' --resample align --output optmodel_4k
- * Execution with 100000 particles and 100 sweeps (homogenate data H.json or lysate data L.json): 
- * ./optmodel_4k models/data/H_real.json 100000 100 > output/H_4k.json
+ *   tpplc models/optimal_metabarcoding/optmodel_4k.tppl -m 'smc-apf' --resample align --output optmodel_4k
+ * Execution with 500000 particles and 100 sweeps (homogenate data H.json or lysate data L.json): 
+ * ./optmodel_4k models/data/optmetabar/H.json 500000 100 > output/H_4k.json
  */
 
 /*
@@ -13,14 +13,10 @@
  *   Homogenate data in H.json or lysate data in L.json: 
  * Priors: 
  *   From optimal metabarcoding paper, Iwaszkiewicz-Eggebrecht et al., 2023
- * Posterior:
- *   returning theta at the moment
+ *
  */
-model function myModel(dataset: Real[][]) : Real  {
-  assume k1 ~ Gamma(1.0, 10.0);
-  assume k2 ~ Gamma(1.0, 10.0);
-  assume k3 ~ Gamma(1.0, 10.0);
-  assume k4 ~ Gamma(1.0, 10.0);
+model function myModel(dataset: Int[][]) : ()  {
+  let k = iid(gamma, GammaParam{shape = 1.0, scale = 10.0}, 4); 
   assume logTheta ~ Gaussian(0.0, 2.0); 
   let theta = exp(logTheta);
   
@@ -29,21 +25,16 @@ model function myModel(dataset: Real[][]) : Real  {
   assume mu ~ Gaussian(6.5, sigma); 
 
   let nsamples = length(dataset); // nsamples is total number of samples, with index j
+  let logC = iid(gaussian, GaussianParam{mean = mu, dev = sigma}, nsamples); // sample j logC's
+  let c = sapply(logC, exp); 
+
   for j in 1 to nsamples { 
-    assume logC ~ Gaussian(mu, sigma); 
-    let c = exp(logC);
-    if dataset[j][1] > 0.0 {
-      observe dataset[j][1] ~ Gamma(k1, c*theta);
-    }
-    if dataset[j][2] > 0.0 {
-      observe dataset[j][2] ~ Gamma(k2, c*theta);
-    }
-    if dataset[j][3] > 0.0 {
-      observe dataset[j][3] ~ Gamma(k3, c*theta);
-    }
-    if dataset[j][4] > 0.0 {
-      observe dataset[j][4] ~ Gamma(k4, c*theta);
+    for i in 1 to 4 { //i is index of spike-in species(artificial or biological) or simply species index
+      if neqi(dataset[j][i], 0) { //cannot observe a zero from Gamma
+        observe Real(dataset[j][i]) ~ Gamma(k[i], c[j] * theta);
+      }
     }
   }
-  return(theta); 
+
+  //return () //Not returning samples in this version
 }

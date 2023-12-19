@@ -1,10 +1,10 @@
 /*
  * File: optmodel.tppl
- * Description: Probabilistic model taken from optimal metabarcoding, draft 2023-09-13
+ * Description: Probabilistic model taken from optimal metabarcoding
  * Compilation:
- *  tpplc models/optmetabar/optmodel.tppl -m 'smc-bpf' --resample align --output optmodel
- * Execution with 100000 particles and 100 sweeps (homogenate data H.json or lysate data L.json): 
- * ./optmodel models/data/H_real.json 100000 100 > output/H.json
+ *  tpplc models/optimal_metabarcoding/optmodel.tppl -m 'smc-apf' --resample align --output optmodel
+ * Execution with 500000 particles and 100 sweeps (homogenate data H.json or lysate data L.json): 
+ * ./optmodel models/data/optmetabar/H.json 500000 100 > output/H.json
  */
 
 /*
@@ -13,10 +13,9 @@
  *   Homogenate data in H.json or lysate data in L.json: 
  * Priors: 
  *   From optimal metabarcoding paper, Iwaszkiewicz-Eggebrecht et al., 2023
- * Posterior:
- *   returning k at the moment
+ *
  */
-model function myModel(dataset: Real[][]) : Real  {
+model function myModel(dataset: Int[][]): ()  {
   assume k ~ Gamma(1.0, 10.0);
   assume logTheta ~ Gaussian(0.0, 2.0); 
   let theta = exp(logTheta);
@@ -26,14 +25,16 @@ model function myModel(dataset: Real[][]) : Real  {
   assume mu ~ Gaussian(6.5, sigma); 
 
   let nsamples = length(dataset); // nsamples is total number of samples, with index j
+  let logC = iid(gaussian, GaussianParam{mean = mu, dev = sigma}, nsamples); // sample j logC's
+  let c = sapply(logC, exp); 
+
   for j in 1 to nsamples { 
-    assume logC ~ Gaussian(mu, sigma); 
-    let c = exp(logC);
     for i in 1 to 4 { //i is index of spike-in species, in this example 1 to 4
-      if dataset[j][i] > 0.0 {
-        observe dataset[j][i] ~ Gamma(k, c*theta);
+      if neqi(dataset[j][i], 0) {
+        observe Real(dataset[j][i]) ~ Gamma(k, c[j] * theta);
       }
     }
   }
-  return(k); 
+
+  //return () //Not returning samples in this version
 }

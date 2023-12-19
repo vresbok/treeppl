@@ -1,23 +1,23 @@
 /*
  * File: optmodel15.tppl
- * Description: Probabilistic model taken from optimal metabarcoding adjusted to 15samples, 2023-10-08
+ * Description: Probabilistic model taken from optimal metabarcoding adjusted to 15samples, 2023-12-18
  * Compilation:
- *  tpplc models/15samples/optmodel15_2k.tppl -m 'smc-bpf' --resample align --output optmodel15_2k
+ *  tpplc models/15samples/optmodel15_2k.tppl -m 'smc-apf' --resample align --output optmodel15_2k
  * Execution with 10000 particles and 1 sweeps:
- * ./optmodel15_2k models/data/15samples/art_h.json 10000 1 > 15s_2k.json
+ * ./optmodel15_2k models/data/15samples/art_h_int.json 10000 1 > 15s_2k.json
  */
+
+// Type for return
+type MyReturn = MyReturn{c: Real[], k: Real[], theta: Real}
 
 /*
  * Model function
  * Data:
  *   Homogenate data, 15 samples. dataset is number of reads r per species per sample for two artificial spikeins
- * Priors: 
- *   ...
- * Posterior:
- *   returning k1 at the moment
+ *
  */
-model function myModel(dataset: Real[][]) : Real  {
-  let k = iid(gamma, GammaParam{shape=1.0, scale=10.0}, 2); 
+model function myModel(dataset: Int[][]) : ()  {
+  let k = iid(gamma, GammaParam{shape = 1.0, scale = 10.0}, 2); 
   assume logTheta ~ Gaussian(0.0, 2.0); 
   let theta = exp(logTheta);
   
@@ -26,16 +26,16 @@ model function myModel(dataset: Real[][]) : Real  {
   assume mu ~ Gaussian(6.5, sigma); 
 
   let nsamples = length(dataset); // nsamples is total number of samples, with index j
-  let logC = iid(gaussian, GaussianParam{mean=mu, dev=sigma}, nsamples); // sample j logC's
+  let logC = iid(gaussian, GaussianParam{mean = mu, dev = sigma}, nsamples); // sample j logC's
+  let c = sapply(logC, exp); 
 
   for j in 1 to nsamples { 
     for i in 1 to 2 { //i is index of spike-in species(artificial or biological) or simply species index
-      if dataset[j][i] > 0.0 { //cannot observe a zero from Gamma
-        observe dataset[j][i] ~ Gamma(k[i], exp(logC[j])*theta);
+      if neqi(dataset[j][i], 0) { //cannot observe a zero from Gamma
+        observe Real(dataset[j][i]) ~ Gamma(k[i], c[j] * theta);
       }
     }
   }
 
-  //let d = k*theta;
-  return (k[1]); 
+  // return MyReturn{c = c, k = k, theta = theta}; 
 }
