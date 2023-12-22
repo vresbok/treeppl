@@ -11,12 +11,32 @@
 type MyReturn = MyReturn{c: Real[], k: Real[], theta: Real}
 
 /*
+ * Recursive function per sample
+ */
+function process_samples(dataset: Int[][], k: Real[], theta: Real, mu: Real, sigma: Real, c_seq: Real[], j: Int): Real[] { 
+  assume logC ~ Gaussian(mu, sigma); 
+  let c = exp(logC);
+  let c_seq = join([c_seq,[c]]);
+  for i in 1 to 2 { //i is index of spike-in species(artificial or biological) or simply species index
+    if neqi(dataset[j][i], 0) { //cannot observe a zero from Gamma
+      observe Real(dataset[j][i]) ~ Gamma(k[i], c * theta);
+    }
+  }
+  if eqi(j, 15) { //15 samples
+    return c_seq;
+  }
+  else {
+    return process_samples(dataset, k, theta, mu, sigma, c_seq, addi(j, 1));
+  }
+}
+
+/*
  * Model function
  * Data:
  *   Homogenate data, 15 samples. dataset is number of reads r per species per sample for two artificial spikeins
  *
  */
-model function myModel(dataset: Int[][]) : ()  {
+model function myModel(dataset: Int[][]) : MyReturn  {
   let k = iid(gamma, GammaParam{shape = 1.0, scale = 10.0}, 2); 
   assume logTheta ~ Gaussian(0.0, 2.0); 
   let theta = exp(logTheta);
@@ -25,17 +45,7 @@ model function myModel(dataset: Int[][]) : ()  {
   let sigma = sqrt(1.0 / tau); //sigma2 sampled from InverseGamma
   assume mu ~ Gaussian(6.5, sigma); 
 
-  let nsamples = length(dataset); // nsamples is total number of samples, with index j
-  let logC = iid(gaussian, GaussianParam{mean = mu, dev = sigma}, nsamples); // sample j logC's
-  let c = sapply(logC, exp); 
+  let c_seq = process_samples(dataset, k, theta, mu, sigma, [], 1);
 
-  for j in 1 to nsamples { 
-    for i in 1 to 2 { //i is index of spike-in species(artificial or biological) or simply species index
-      if neqi(dataset[j][i], 0) { //cannot observe a zero from Gamma
-        observe Real(dataset[j][i]) ~ Gamma(k[i], c[j] * theta);
-      }
-    }
-  }
-
-  // return MyReturn{c = c, k = k, theta = theta}; 
+  return MyReturn{c = c_seq, k = k, theta = theta}; 
 }
