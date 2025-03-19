@@ -24,6 +24,9 @@ let gti = gti
 let slice = lam seq. lam beg. lam mend.
     subsequence seq (subi beg 1) (subi mend beg)
 
+let ceilfi = ceilfi
+let floorfi = floorfi
+let roundfi = roundfi
 
 ----------------------------
 --- Printing and strings ---

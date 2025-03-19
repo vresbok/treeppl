@@ -3,4 +3,6 @@ out.mc
 .DS_Store
 tool
 build/
-
+output/
+run/
+json_amend.zsh

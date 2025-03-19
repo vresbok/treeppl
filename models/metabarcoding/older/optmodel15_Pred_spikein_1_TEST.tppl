@@ -1,0 +1,103 @@
+/*
+ * File: optmodel15_Pred_spikein_1_TEST.tppl
+ * Description: Probabilistic model taken from optimal metabarcoding adjusted to 15samples
+ * Compilation:
+ *  tpplc models/metabarcoding/optmodel15_Pred_spikein_1_TEST.tppl -m 'smc-apf' --resample align --subsample -n 1 --output optmodel15_Pred_spikein_1_TEST
+ * Execution with 10000 particles and 1 sweep:
+ * ./optmodel15_Pred_spikein_1_TEST models/data/15samples/nospikein_1_samples.json.json 5000 1 > TEST_PRED.json
+ */
+
+/*
+ * Geometric dist. 
+ */
+function geometric(p: Real, n: Int): Int {
+  assume a ~ Uniform(0.0, 1.0);
+  if (a < p) {
+    return n;
+  }
+  else {
+    return geometric(p, addi(n, 1));
+  }
+}
+
+/*
+ * Recursive prediction function per sample
+ */  
+function predict_sample(dataset: Int[][], c_dist: Real[][], k_bio: Real, theta: Real, weights: Real[], p_value: Real, n_spikeins: Int[], sample: Int, species: Int, n: Real[], index: Int): Real[] { 
+  //Sample c for this sample from dist
+    assume c_index_1 ~ Categorical(weights);
+    let c_index = addi(c_index_1, 1);
+    //let c = c_dist[sample][c_index_1];
+    let c = c_dist[sample][index];
+  //Predict n per species
+  let new_n = predict_species(dataset, k_bio, theta, weights, c, p_value, n_spikeins, sample, species, n);
+  if eqi(sample, length(dataset)) {
+    return new_n;
+  }
+  else {
+    return predict_sample(dataset, c_dist, k_bio, theta, weights, p_value, n_spikeins, addi(sample, 1), species, new_n, index); 
+  }
+}
+
+/*
+ * Recursive prediction function per species
+ */
+function predict_species(dataset: Int[][], k_bio: Real, theta: Real, weights: Real[], c: Real, p_value: Real, n_spikeins: Int[], sample: Int, species: Int, n: Real[]): Real[] { 
+  if neqi(dataset[sample][species], 0) { //If reads are not zero 
+    
+    //Sample n
+    assume float_n ~ Exponential(p_value);
+    let sampled_n = Real(roundfi(float_n)); 
+
+    //Observe species
+    observe Real(dataset[sample][species]) ~ Gamma(sampled_n * k_bio, c * theta); 
+
+    //join n's
+    let new_n = join([n, [sampled_n]]);
+    if eqi(1, 1) {  //ONLY ONE SPECIES THIS MODEL VERSION
+      return new_n;
+    }
+    else {
+      return predict_species(dataset, k_bio, theta, weights, c, p_value, n_spikeins, sample, addi(species, 1), new_n);
+    }
+  }
+  else { 
+    if eqi(species, length(dataset[1])) { 
+      return n;
+    }
+    else {
+      return predict_species(dataset, k_bio, theta, weights, c, p_value, n_spikeins, sample, addi(species, 1), n);
+    }
+  }
+}
+
+/*
+ * Model function
+ * Data:
+ *   Homogenate data, 15 samples. dataset is number of reads r per species per sample for two artificial spikeins
+ * Priors: 
+ *  Estimated p_values from ground truth count data per species
+ * Posterior:
+ *   returning n
+ */
+model function myModel(bio_spikeins: Int[][], c_dist: Real[][], weights: Real[], k_bio_dist: Real[], theta_dist: Real[], n_spikeins: Int[]) : Real[]  {
+  
+  let spikein_species = 1; //Change this depending on which one you want to predict
+  
+  //let estimated_p_values_spikeins = [0.3333333, 0.25, 0.5, 0.5, 0.5, 0.5]
+  //let estimated_p_values_sd_spikeins = [0.07027284, 0.05590170, 0.09128709, 0.09128709, 0.09128709, 0.09128709]
+
+  assume p_value ~ Uniform(0.2, 0.6); //Gaussian(0.4, 0.05);
+
+  assume index_1 ~ Categorical(weights);
+  let index = addi(index_1, 1); // so index not zero
+
+  let k_bio = k_bio_dist[index];
+  let theta = theta_dist[index];
+
+  //Go through samples (here from 1 to 15), species (here 1).
+  let n = predict_sample(bio_spikeins, c_dist, k_bio, theta, weights, p_value, n_spikeins, 1, spikein_species, [], index); 
+
+  return(n); 
+}
+
