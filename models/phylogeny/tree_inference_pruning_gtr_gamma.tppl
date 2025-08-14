@@ -1,12 +1,5 @@
 // TreePPL script for tree inference under the
-// GTR model with a strict clock prior. Pruning currently hard-coded.
-
-// Run this by compiling: 
-// tpplc models/phylo/phylogeny/tree_inference_pruning_gtr.tppl -m 'smc-apf' --resample align --output phylo_gtr
-// Or if subsampling is desired, where n is the number of samples in putput:
-// tpplc models/phylo/phylogeny/tree_inference_pruning_gtr.tppl -m 'smc-apf' --resample align --subsample -n 1 --output phylo_gtr
-// And then execution 1000 particles 1 sweep, using for example toy dataset phylo_toydata.json:
-// ./phylo_gtr models/data/treeinference/phylo_toydata.json 1000 1 > phylo_pruning_gtr.json
+// GTR model with gamma rate variation across sites. 
 
 // Toy dataset as json file phylo_toydata.json. 
 // Data is a matrix with each row
@@ -16,7 +9,7 @@
 //   "C" for cytosine  - 1
 //   "G" for guanine - 2
 //   "T" for thymine - 3
-//   "-" for gaps - 4 //To be extended
+//   "-" for gaps - 4 
 
 // TYPES
 
