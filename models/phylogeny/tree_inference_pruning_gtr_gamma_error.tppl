@@ -21,8 +21,8 @@
 // TYPES
 
 type MsgTree =
-  | Leaf {age: Real, index: Int, msg: Matrix[Real][][]}   // [cat][site]
-  | Node {age: Real, msg: Matrix[Real][][], left: MsgTree, right: MsgTree}
+  | Leaf {age: Real, index: Int, msg: Matrix[Real][]}
+  | Node {age: Real, msg: Matrix[Real][], left: MsgTree, right: MsgTree}
 
 
 // FUNCTIONS
@@ -56,30 +56,49 @@ function pickpair(n: Int) => Int[] {
     else { return [i,j+1];}
 }
 
-// One site → row-vector; keeps your leaf logWeight(pi[state])
-function get_leaf_row(seq: Int, pi: Real[])  => Matrix[Real] {
-    if (seq==0) { logWeight (log(pi[1])); return rvecCreate(4, [1.0,0.0,0.0,0.0]); } // A
-    if (seq==1) { logWeight (log(pi[2])); return rvecCreate(4, [0.0,1.0,0.0,0.0]); } // C
-    if (seq==2) { logWeight (log(pi[3])); return rvecCreate(4, [0.0,0.0,1.0,0.0]); } // G
-    if (seq==3) { logWeight (log(pi[4])); return rvecCreate(4, [0.0,0.0,0.0,1.0]); } // T
-    if (seq==4) { return rvecCreate(4, [1.0,1.0,1.0,1.0]); }                           // gap
-    return error("Invalid state at leaf");
-  }
-  
-  // replicate per-site rows across the 4 categories
-  function replicate4(rows: Matrix[Real][]) => Matrix[Real][][] {
-    return [rows, rows, rows, rows];
-  }
-  
-  function build_forest(data: Int[][], forest: MsgTree[], index: Int, data_len: Int, seq_len: Int, pi: Real[]) => MsgTree[] { 
-    let site_rows = sapply1(data[index], get_leaf_row, pi);   // [site]
-    let msg4 = replicate4(site_rows);                         // [cat][site]
-    let new_leaf = Leaf{age = 0.0, index = index, msg = msg4}; 
+// Build forest of trees from leaves, recursively
+function build_forest(data: Int[][], forest: MsgTree[], index: Int, data_len: Int, seq_len: Int, pi: Real[]) => MsgTree[] { 
+    let new_message = sapply1(data[index], get_leaf_message, pi); 
+    let new_leaf = Leaf{age = 0.0, index = index, msg =  new_message}; 
     let new_forest = paste0([forest, [new_leaf]]);
-    if (data_len == index) { return new_forest; }
-    else { return build_forest(data, new_forest, (index+1), data_len, seq_len, pi); }
-  }
-    
+    if ((data_len == index)) {
+        return new_forest; 
+    }
+    else {
+        return build_forest(data, new_forest, (index+1), data_len, seq_len, pi);
+    }
+}
+
+// Get message from leaves for each site
+function get_leaf_message(seq: Int, pi: Real[])  => Matrix[Real] {
+    if ((seq==0)) { // "A"
+        let message = rvecCreate(4, [1.0, 0.0, 0.0, 0.0]);
+        logWeight (log(pi[1]));
+        return message;
+    } 
+    if ((seq==1)) { // "C"
+        let message = rvecCreate(4, [0.0, 1.0, 0.0, 0.0]);
+        logWeight (log(pi[2]));
+        return message;
+    } 
+    if ((seq==2)) { // "G"
+        let message = rvecCreate(4, [0.0, 0.0, 1.0, 0.0]);
+        logWeight (log(pi[3]));
+        return message;
+    } 
+    if ((seq==3)) {  // "T"
+        let message = rvecCreate(4, [0.0, 0.0, 0.0, 1.0]);
+        logWeight (log(pi[4]));
+        return message;
+    } 
+    if ((seq==4)) {  // "-"
+        let message = rvecCreate(4, [1.0, 1.0, 1.0, 1.0]);
+        return message;
+    } 
+    else {
+        return error("Invalid state at leaf");
+    }
+}     
 
 function mini(a: Int, b: Int) => Int {
   if a <= b {
@@ -103,66 +122,6 @@ function get_log_likes(msg: Matrix[Real], pi: Real[]) => Real {
     return log_like;
 } 
 
-  // Combine one site for one category (push left/right, then elementwise multiply)
-function combine_site_onecat(
-    left_row: Matrix[Real], right_row: Matrix[Real],
-    tL: Matrix[Real], tR: Matrix[Real]
-  ) => Matrix[Real] {
-    let l = mtxMul(left_row, tL);
-    let r = mtxMul(right_row, tR);
-    // elementwise via your site-wise helper
-    return messageElemMul([l],[r])[1];
-  }
-  
-  // Zip/apply over all sites for one category (recursive)
-  function zip_apply_onecat(xs: Matrix[Real][], ys: Matrix[Real][], tL: Matrix[Real], tR: Matrix[Real]) => Matrix[Real][] {
-    let n = length(xs);
-    if (n != length(ys)) { return error("zip_apply_onecat: length mismatch"); }
-    if (n == 0) { 
-        return []; 
-    }
-    let head = combine_site_onecat(xs[1], ys[1], tL, tR);
-    let tail = zip_apply_onecat(slice(xs,2,n+1), slice(ys,2,n+1), tL, tR);
-    return paste0([[head], tail]);
-  }
-  
-  // Merge two subtrees without mixing categories. Returns [cat][site]
-  function combine_msgs_allcats(lmsg: Matrix[Real][][], rmsg: Matrix[Real][][],t1L: Matrix[Real], t2L: Matrix[Real], 
-    t3L: Matrix[Real], t4L: Matrix[Real],t1R: Matrix[Real], t2R: Matrix[Real], t3R: Matrix[Real], t4R: Matrix[Real]) => Matrix[Real][][] {
-    let out1 = zip_apply_onecat(lmsg[1], rmsg[1], t1L, t1R);
-    let out2 = zip_apply_onecat(lmsg[2], rmsg[2], t2L, t2R);
-    let out3 = zip_apply_onecat(lmsg[3], rmsg[3], t3L, t3R);
-    let out4 = zip_apply_onecat(lmsg[4], rmsg[4], t4L, t4R);
-    return [out1, out2, out3, out4];
-  }
-
-  function pi_col(pi: Real[]) => Matrix[Real] {
-      return cvecCreate(4, pi); 
-  }
-
-// One site's log-marginal for a subtree
-function site_log_marginal_from_msg4(msg4_site: Matrix[Real][], pi: Real[], w: Real[]) => Real {
-  let p = pi_col(pi);
-  let s1 = mtxGet(1,1, mtxMul(msg4_site[1], p));
-  let s2 = mtxGet(1,1, mtxMul(msg4_site[2], p));
-  let s3 = mtxGet(1,1, mtxMul(msg4_site[3], p));
-  let s4 = mtxGet(1,1, mtxMul(msg4_site[4], p));
-  return log(w[1]*s1 + w[2]*s2 + w[3]*s3 + w[4]*s4);  // For long alignments, this may need changing? scaling approach.
-}
-
-// Map over all sites (recursive)
-function loglikes_from_msg4(
-  msg4: Matrix[Real][][], pi: Real[], w: Real[]) => Real[] {
-  let n = length(msg4[1]);        // n: number of sites
-  if (n == 0) { 
-    return []; 
-  }
-  let head = site_log_marginal_from_msg4([msg4[1][1], msg4[2][1], msg4[3][1], msg4[4][1]], pi, w);
-  let tail = loglikes_from_msg4([slice(msg4[1],2,n+1), slice(msg4[2],2,n+1), slice(msg4[3],2,n+1), slice(msg4[4],2,n+1)], pi, w);
-  return paste0([[head], tail]);
-}
-
-
 // KEY FUNCTION: CLUSTER
 function cluster(q: Matrix[Real], trees: MsgTree[], maxAge: Real, seq_len: Int, pi: Real[], rates_cat: Real[], weights: Real[]) => MsgTree[] {
     
@@ -183,38 +142,66 @@ function cluster(q: Matrix[Real], trees: MsgTree[], maxAge: Real, seq_len: Int, 
     assume t ~ Exponential(10.0);
     let age = maxAge + t;
 
-     // time deltas
     let deltaL = age - left_child.age;
     let deltaR = age - right_child.age;
 
-    // build T_k for each branch
+    // build the 4 category‐specific matrix on the left branch:
     let t1L = mtxTrans(mtxExp(mtxSclrMul(rates_cat[1]*deltaL, q)));
     let t2L = mtxTrans(mtxExp(mtxSclrMul(rates_cat[2]*deltaL, q)));
     let t3L = mtxTrans(mtxExp(mtxSclrMul(rates_cat[3]*deltaL, q)));
     let t4L = mtxTrans(mtxExp(mtxSclrMul(rates_cat[4]*deltaL, q)));
+    // mix them once into one matrix
+    let mixTM_L =
+      mtxAdd(
+        mtxAdd(
+          mtxSclrMul(weights[1], t1L),
+          mtxSclrMul(weights[2], t2L)
+        ),
+        mtxAdd(
+          mtxSclrMul(weights[3], t3L),
+          mtxSclrMul(weights[4], t4L)
+       )
+      );
 
+    // and for right branch
     let t1R = mtxTrans(mtxExp(mtxSclrMul(rates_cat[1]*deltaR, q)));
     let t2R = mtxTrans(mtxExp(mtxSclrMul(rates_cat[2]*deltaR, q)));
     let t3R = mtxTrans(mtxExp(mtxSclrMul(rates_cat[3]*deltaR, q)));
     let t4R = mtxTrans(mtxExp(mtxSclrMul(rates_cat[4]*deltaR, q)));
+    let mixTM_R =
+      mtxAdd(
+       mtxAdd(
+          mtxSclrMul(weights[1], t1R),
+          mtxSclrMul(weights[2], t2R)
+        ),
+        mtxAdd(
+          mtxSclrMul(weights[3], t3R),
+          mtxSclrMul(weights[4], t4R)
+        )
+      );
 
-    // category-wise combine; no mix of categories
-    let node_msg = combine_msgs_allcats(left_child.msg, right_child.msg,t1L,t2L,t3L,t4L, t1R,t2R,t3R,t4R);
+    // Per‐site message update, combined
+    let left_in_msg  = sapply1(left_child.msg,  mtxMul, mixTM_L);
+    let right_in_msg = sapply1(right_child.msg, mtxMul, mixTM_R);
 
-    // weights
-    let log_likes_node  = loglikes_from_msg4(node_msg, pi, weights);
-    let log_likes_left  = loglikes_from_msg4(left_child.msg, pi, weights);
-    let log_likes_right = loglikes_from_msg4(right_child.msg,pi, weights);
+    // Get the message of the new node
+    let node_msg = messageElemMul(left_in_msg, right_in_msg);
 
-    logWeight (seqSumReal(log_likes_node));
+    // Weights
+    let log_likes = sapply1(node_msg, get_log_likes, pi);
+    logWeight (seqSumReal(log_likes));
+
+    // Remove weights of previous internal children
+    let log_likes_left = sapply1(left_child.msg, get_log_likes, pi);
     logWeight -(seqSumReal(log_likes_left));
+    let log_likes_right = sapply1(right_child.msg, get_log_likes, pi);
     logWeight -(seqSumReal(log_likes_right));
 
     // Manual resample
     resample;
 
-    // build parent node
-    let parent = Node{age=age, msg=node_msg, left=left_child, right=right_child};
+    // Combine picked pair of trees into a new node
+    let parent = Node{age=age, msg=node_msg, left=left_child, right=right_child};  
 
     // Compute new_trees list
     let min = mini(pairs[2],pairs[1]);
