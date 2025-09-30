@@ -65,7 +65,7 @@ TEST_CONFIGURATIONS += -m_mcmc-naive
 TEST_CONFIGURATIONS += -m_pmcmc-pimh_--cps_full
 TEST_CONFIGURATIONS += -m_pmcmc-pimh_--cps_partial
 
-MODELS := $(shell find models -name "*.tppl")
+MODELS := $(shell find models -name "*.tppl" -a ! -path '*-lib/*')
 MODEL_CONFIGS := $(foreach model,$(MODELS),$(foreach config,$(TEST_CONFIGURATIONS),$(model)@$(config)))
 
 .PHONY: $(MODEL_CONFIGS)
@@ -75,7 +75,7 @@ $(MODEL_CONFIGS):
 	conf="$(subst _, ,$(lastword $(subst @, ,$@)))"; \
 	mkdir -p build/$$(dirname $$path); \
 	build/${tppl_name} $$conf $$path -p 2 --debug-phases --output build/$@ > build/$@.c.out 2> build/$@.c.err || { st=$$?; echo "$$path,$$conf,compile failure,$$st"; exit $$st; }; \
-	build/$@ "$${path%.tppl}.json" > build/$@.r.out 2> build/$@.r.err || { st=$$?; echo "$$path,$$conf,run failure,$$st"; exit $$st; }; \
+	build/$@ $$(dirname $$path)"/data/testdata_"$$(basename -s ".tppl" $$path)".json" > build/$@.r.out 2> build/$@.r.err || { st=$$?; echo "$$path,$$conf,run failure,$$st"; exit $$st; }; \
 	echo "$$path,$$conf,success,0"
 
 .PHONY: test-models
